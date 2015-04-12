@@ -30,42 +30,33 @@ class ECDSA:
     def sign(self, message, k):
         Q = self.curve.scalerMul(self.curve.get_G(), k)
         r = Q.x
-        print hex(r)
         kinv = self.nfield.inv(k)
-        print hex(k)
-        print hex(kinv)
-        print hex(self.privateKey)
+        digest = hashlib.sha256(message).hexdigest()
+        digest = long(digest, 16)
+        digest = digest >> (digest.bit_length()-163)
+        digest = self.nfield.mod(digest)        
+        s = self.nfield.mul(kinv, (self.nfield.mul(r, self.privateKey) + digest))        
+        return r, s
+    
+    def verify(self, message, Q, r, s):
+        if self.curve.isNotPoint(Q):
+            print 'Public key is not valid'
+            return -1
         
         digest = hashlib.sha256(message).hexdigest()
         digest = long(digest, 16)
         digest = digest >> (digest.bit_length()-163)
-        digest = self.nfield.mod(digest)
-        print hex(digest)
+        digest = self.nfield.mod(digest)   
         
-        s = self.nfield.mul(kinv, (self.nfield.mul(r, self.privateKey) + digest))
-        
-        print hex(s)
-        print '$$$$$$$$$$$$$$$$$'
-        s = 0x1313A2E03F5412DDB296A22E2C455335545672D9F
-        print hex(s)
-        digest = self.nfield.mul(k, s) ^ self.nfield.mul(r, self.privateKey)
-        print hex(digest)
-        print digest.bit_length()
-        return digest
-    
-    def verify(self, message, r, s):
-        sinv = self.curve.Field.inv(s)
-        print hex(sinv)
-        digest = hashlib.sha1(message).hexdigest()
-        print digest
-        digest = long(digest, 16)
-        digest = mpz(digest)
-        print hex(digest)
-        digest = digest >> (digest.bit_length()-163)
-        print digest.bit_length()
-        print hex(digest)
-        print hex(digest)
-        #s = self.curve.Field.mul(kinv, (self.curve.Field.mul(r, self.privateKey) ^ digest))
-        #print hex(s)
-        return digest
-        
+        w = self.nfield.inv(s)
+        u1 = self.nfield.mul(digest, w)
+        u2 = self.nfield.mul(r, w)
+        u1G = self.curve.scalerMul(self.curve.get_G(), u1)
+        u2Q = self.curve.scalerMul(Q, u2)
+        P = self.curve.add(u1G, u2Q)
+        if r == P.x:
+            print 'Signature is valid'
+            return 0
+        else:
+            print 'Signature is invalid'
+        return -1        
